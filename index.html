@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entradas — Ticket App</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- Stripe.js -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- App scripts -->
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     ROOT APP
+     ============================================================ -->
+<div x-data="app" x-cloak>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a href="#/" class="site-logo"><span>■</span> Ticket App</a>
+
+      <template x-if="!$store.cart.isEmpty">
+        <a href="#/checkout" class="cart-indicator">
+          🎟 Carrito
+          <span class="cart-indicator__count" x-text="$store.cart.totalItems"></span>
+        </a>
+      </template>
+    </div>
+  </header>
+
+  <!-- ========== EVENTS LISTING ========== -->
+  <template x-if="isRoute('events')">
+    <div x-data="eventsPage">
+      <div class="hero">
+        <h1 class="hero__title">Próximos Eventos</h1>
+        <p class="hero__subtitle">Compra tus entradas y apoya nuestra causa solidaria</p>
+      </div>
+
+      <div class="container">
+        <!-- Loading -->
+        <template x-if="loading">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            Cargando eventos...
+          </div>
+        </template>
+
+        <!-- Events grid -->
+        <template x-if="!loading && events.length > 0">
+          <div class="events-grid">
+            <template x-for="event in events" :key="event.id">
+              <div class="event-card" @click="navigateTo(event.id)">
+                <template x-if="event.image_url">
+                  <img :src="event.image_url" :alt="event.name" class="event-card__image">
+                </template>
+                <template x-if="!event.image_url">
+                  <div class="event-card__image-placeholder">🎪</div>
+                </template>
+
+                <div class="event-card__body">
+                  <div class="event-card__date">
+                    <span x-text="formatDate(event.event_date)"></span> · <span x-text="formatTime(event.event_date)"></span>
+                  </div>
+                  <div class="event-card__name" x-text="event.name"></div>
+                  <div class="event-card__venue" x-text="event.venue"></div>
+                  <div class="event-card__footer">
+                    <span class="event-card__price">
+                      <span x-text="event.available_seats"></span>
+                      <span> plazas disponibles</span>
+                    </span>
+                    <template x-if="isAlmostFull(event)">
+                      <span class="badge badge--warning">Últimas plazas</span>
+                    </template>
+                    <template x-if="isSoldOut(event)">
+                      <span class="badge badge--danger">Agotado</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Empty -->
+        <template x-if="!loading && events.length === 0">
+          <div class="empty-state">
+            <div class="empty-state__icon">📅</div>
+            <div class="empty-state__text">No hay eventos próximos. ¡Vuelve pronto!</div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ========== EVENT DETAIL ========== -->
+  <template x-if="isRoute('event-detail')">
+    <div x-data="eventDetailPage">
+      <div class="container">
+        <template x-if="loading">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            Cargando evento...
+          </div>
+        </template>
+
+        <template x-if="!loading && event">
+          <div>
+            <a class="page-back" @click.prevent="goBack">← Volver a eventos</a>
+
+            <div class="event-detail">
+              <!-- Main content -->
+              <div class="event-detail__main">
+                <h1 class="event-detail__title" x-text="event.name"></h1>
+
+                <div class="event-detail__meta">
+                  <div class="event-detail__meta-item">
+                    <span class="event-detail__meta-icon">📅</span>
+                    <span x-text="formatDate(event.event_date)"></span>
+                  </div>
+                  <div class="event-detail__meta-item">
+                    <span class="event-detail__meta-icon">🕐</span>
+                    <span>
+                      <span x-text="formatTime(event.event_date)"></span> ·
+                      <span x-text="formatDuration(event.duration_minutes)"></span>
+                    </span>
+                  </div>
+                  <div class="event-detail__meta-item">
+                    <span class="event-detail__meta-icon">📍</span>
+                    <span x-text="event.venue"></span>
+                  </div>
+                  <div class="event-detail__meta-item">
+                    <span class="event-detail__meta-icon">💺</span>
+                    <span>
+                      <span x-text="event.available_seats"></span> /
+                      <span x-text="event.total_seats"></span> plazas disponibles
+                    </span>
+                  </div>
+                </div>
+
+                <template x-if="event.description">
+                  <p class="event-detail__description" x-text="event.description"></p>
+                </template>
+              </div>
+
+              <!-- Ticket selector sidebar -->
+              <div class="ticket-sidebar">
+                <div class="ticket-panel">
+                  <div class="ticket-panel__header">Entradas</div>
+
+                  <template x-if="!salesOpen">
+                    <div style="padding:24px;text-align:center;color:var(--color-text-muted)">
+                      La venta de entradas ha finalizado.
+                    </div>
+                  </template>
+
+                  <template x-if="soldOut && salesOpen">
+                    <div style="padding:24px;text-align:center;color:var(--color-danger)">
+                      Entradas agotadas.
+                    </div>
+                  </template>
+
+                  <template x-if="salesOpen && !soldOut">
+                    <div class="ticket-panel__body">
+                      <template x-for="tt in ticketTypes" :key="tt.id">
+                        <div class="ticket-option">
+                          <div class="ticket-option__info">
+                            <div class="ticket-option__name" x-text="tt.name"></div>
+                            <div class="ticket-option__price" x-text="formatCents(tt.price_cents)"></div>
+                            <div class="ticket-option__meta">
+                              <span x-text="typeLabel(tt.type)"></span>
+                              <template x-if="tt.type === 'group'">
+                                <span> · <span x-text="tt.quantity"></span> entradas</span>
+                              </template>
+                              <template x-if="!tt.takes_seat">
+                                <span> · Sin asiento</span>
+                              </template>
+                            </div>
+                          </div>
+
+                          <div class="qty-control">
+                            <button class="qty-control__btn" @click="removeFromCart(tt.id)"
+                              :disabled="cartQty(tt.id) === 0">−</button>
+                            <span class="qty-control__value" x-text="cartQty(tt.id)"></span>
+                            <button class="qty-control__btn" @click="addToCart(tt)">+</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <template x-if="!$store.cart.isEmpty">
+                    <div class="ticket-panel__footer">
+                      <div class="ticket-panel__total">
+                        <span>Total</span>
+                        <span class="ticket-panel__total-amount"
+                          x-text="formatCents($store.cart.totalCents)"></span>
+                      </div>
+                      <button class="btn btn--primary btn--block btn--lg" @click="goToCheckout">
+                        Comprar entradas
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ========== CHECKOUT ========== -->
+  <template x-if="isRoute('checkout')">
+    <div x-data="checkoutPage">
+      <div class="container">
+        <a class="page-back" @click.prevent="goBackToEvent">← Volver al evento</a>
+
+        <h1 style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;margin-bottom:24px;letter-spacing:-0.02em">
+          Finalizar compra
+        </h1>
+
+        <template x-if="error">
+          <div class="form-error" x-text="error"></div>
+        </template>
+
+        <!-- PROCESSING -->
+        <template x-if="step === 'processing'">
+          <div class="processing">
+            <div class="spinner"></div>
+            <div class="processing__text">Procesando tu pago...</div>
+            <div class="processing__sub">No cierres esta página</div>
+          </div>
+        </template>
+
+        <!-- REVIEW + PAYMENT STEPS -->
+        <template x-if="step !== 'processing'">
+          <div class="checkout-layout">
+            <!-- Left column -->
+            <div>
+              <!-- Step 1: Review & Buyer Info -->
+              <template x-if="step === 'review'">
+                <div>
+                  <!-- Cart items -->
+                  <div class="checkout-section" style="margin-bottom:20px">
+                    <div class="checkout-section__header">
+                      <span class="checkout-section__step">1</span>
+                      Tu pedido
+                    </div>
+                    <div class="checkout-section__body">
+                      <template x-for="item in cart.items" :key="item.ticketTypeId">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-border-light)">
+                          <div style="flex:1">
+                            <div style="font-weight:600;font-size:0.92rem" x-text="item.name"></div>
+                            <div style="font-size:0.8rem;color:var(--color-text-muted)">
+                              <span x-text="formatCents(item.priceCents)"></span> c/u
+                            </div>
+                          </div>
+                          <div class="qty-control">
+                            <button class="qty-control__btn" @click="updateQty(item.ticketTypeId, -1)">−</button>
+                            <span class="qty-control__value" x-text="item.quantity"></span>
+                            <button class="qty-control__btn" @click="updateQty(item.ticketTypeId, 1)">+</button>
+                          </div>
+                          <div style="width:80px;text-align:right;font-weight:600;margin-left:12px"
+                            x-text="formatCents(itemSubtotal(item))"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Buyer info -->
+                  <div class="checkout-section">
+                    <div class="checkout-section__header">
+                      <span class="checkout-section__step">2</span>
+                      Tus datos
+                    </div>
+                    <div class="checkout-section__body">
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label for="buyer-name">Nombre completo *</label>
+                          <input id="buyer-name" type="text" class="form-input"
+                            x-model="cart.buyerName" placeholder="María García" required>
+                        </div>
+                        <div class="form-group">
+                          <label for="buyer-email">Email *</label>
+                          <input id="buyer-email" type="email" class="form-input"
+                            x-model="cart.buyerEmail" placeholder="maria@ejemplo.org" required>
+                          <div class="form-hint">Recibirás tus entradas en este email</div>
+                        </div>
+                      </div>
+
+                      <template x-if="cart.hasDonation">
+                        <div class="form-group">
+                          <label for="buyer-nid">DNI / NIF (opcional)</label>
+                          <input id="buyer-nid" type="text" class="form-input"
+                            x-model="cart.buyerNationalId" placeholder="12345678A">
+                          <div class="form-hint">Necesario para desgravación fiscal de la donación</div>
+                        </div>
+                      </template>
+
+                      <div style="margin-top:20px">
+                        <button class="btn btn--primary btn--lg btn--block" @click="proceedToPayment"
+                          :disabled="creatingIntent || !formValid">
+                          <template x-if="creatingIntent">
+                            <span style="display:inline-flex;align-items:center;gap:8px">
+                              <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
+                              Preparando pago...
+                            </span>
+                          </template>
+                          <template x-if="!creatingIntent">
+                            <span>Continuar al pago</span>
+                          </template>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Step 2: Payment -->
+              <template x-if="step === 'payment'">
+                <div>
+                  <div class="checkout-section">
+                    <div class="checkout-section__header">
+                      <span class="checkout-section__step">3</span>
+                      Método de pago
+                    </div>
+                    <div class="checkout-section__body">
+                      <div id="stripe-payment-element"></div>
+
+                      <div style="margin-top:20px;display:flex;gap:10px">
+                        <button class="btn btn--ghost" @click="goBackToReview">← Atrás</button>
+                        <button class="btn btn--primary btn--lg" style="flex:1" @click="submitPayment"
+                          :disabled="submittingPayment || !elementReady || elementError">
+                          <template x-if="submittingPayment">
+                            <span>Procesando...</span>
+                          </template>
+                          <template x-if="!submittingPayment && !elementReady">
+                            <span>Inicializando pago...</span>
+                          </template>
+                          <template x-if="!submittingPayment && elementReady && !elementError">
+                            <span>Pagar <span x-text="formatCents(cart.totalCents)"></span></span>
+                          </template>
+                        </button>
+                      </div>
+                      
+                      <!-- Element status feedback -->
+                      <div x-show="elementError" class="error-message" style="margin-top:10px;color:red;font-size:14px;">
+                        <span x-text="elementError"></span>
+                      </div>
+
+                      <div style="text-align:center;margin-top:14px;font-size:0.78rem;color:var(--color-text-muted)">
+                        🔒 Pago seguro procesado por Stripe
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Right column: Cart summary (always visible) -->
+            <div class="cart-summary">
+              <div class="cart-summary__header">
+                Resumen · <span x-text="cart.eventName"></span>
+              </div>
+              <div class="cart-summary__items">
+                <template x-for="item in cart.items" :key="item.ticketTypeId">
+                  <div class="cart-item">
+                    <span class="cart-item__name" x-text="item.name"></span>
+                    <span class="cart-item__qty">×<span x-text="item.quantity"></span></span>
+                    <span class="cart-item__price" x-text="formatCents(itemSubtotal(item))"></span>
+                  </div>
+                </template>
+              </div>
+              <div class="cart-summary__total">
+                <span>Total</span>
+                <span class="cart-summary__total-amount" x-text="formatCents(cart.totalCents)"></span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ========== CONFIRMATION ========== -->
+  <template x-if="isRoute('confirmation')">
+    <div x-data="confirmationPage">
+      <div class="container">
+        <template x-if="order">
+          <div class="confirmation">
+            <div class="confirmation__icon">✓</div>
+            <h1 class="confirmation__title">¡Compra realizada!</h1>
+            <p class="confirmation__message">
+              Gracias, <strong x-text="order.buyerName"></strong>. Tus entradas para
+              <strong x-text="order.eventName"></strong> se han enviado a
+              <strong x-text="order.buyerEmail"></strong>.
+              Revisa tu bandeja de entrada (y spam) para encontrar el PDF con tus códigos QR.
+            </p>
+
+            <div class="confirmation__summary">
+              <div class="confirmation__summary-header">Resumen de la compra</div>
+              <div class="confirmation__summary-body">
+                <template x-for="item in order.items" :key="item.ticketTypeId">
+                  <div class="confirmation__summary-item">
+                    <span>
+                      <span x-text="item.quantity"></span>× <span x-text="item.name"></span>
+                    </span>
+                    <span style="font-weight:600"
+                      x-text="formatCents(item.priceCents * item.quantity)"></span>
+                  </div>
+                </template>
+              </div>
+              <div class="confirmation__summary-total">
+                <span>Total pagado</span>
+                <span x-text="formatCents(order.totalCents)"></span>
+              </div>
+            </div>
+
+            <button class="btn btn--primary btn--lg" @click="goHome">Volver a eventos</button>
+          </div>
+        </template>
+
+        <template x-if="!order">
+          <div class="confirmation">
+            <div class="confirmation__icon">✓</div>
+            <h1 class="confirmation__title">¡Compra realizada!</h1>
+            <p class="confirmation__message">
+              Tu pago se ha procesado correctamente. Revisa tu email para encontrar tus entradas.
+            </p>
+            <button class="btn btn--primary btn--lg" @click="goHome">Volver a eventos</button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div>Ticket App — Plataforma solidaria de venta de entradas</div>
+  </footer>
+
+</div>
+
+<!-- NOTIFICATION TOAST -->
+<div x-data x-show="$store.notify.visible"
+  x-transition class="toast"
+  :class="'toast--' + $store.notify.type"
+  x-text="$store.notify.message"
+  x-cloak>
+</div>
+
+</body>
+</html>
