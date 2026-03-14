@@ -439,8 +439,16 @@ console.log('Data (create-payment-intent):', data);
         console.log('🔍 Elements object:', this.elements);
         console.log('🔍 Elements type:', typeof this.elements);
 
-        // Per official Stripe docs: pass the Elements instance to confirmPayment
-        // For Payment Elements, the element handles payment method collection internally
+        // For Payment Elements, we need to submit the elements first to collect payment method data
+        console.log('🔄 Submitting elements to collect payment data...');
+        const { error: submitError } = await this.elements.submit();
+        if (submitError) {
+          console.error('❌ Elements submit error:', submitError);
+          throw new Error(submitError.message || 'Payment form validation failed');
+        }
+        console.log('✅ Elements submitted successfully');
+
+        // Now confirm the payment
         const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
           elements: this.elements,
           confirmParams: {
