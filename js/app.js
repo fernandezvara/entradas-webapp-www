@@ -298,8 +298,8 @@ document.addEventListener('alpine:init', () => {
     },
 
     get formValid() {
-      return this.cart.buyerName.trim().length >= 2
-        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.cart.buyerEmail);
+      return this.cart?.buyerName?.trim().length >= 2
+        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.cart?.buyerEmail || '');
     },
 
     async proceedToPayment() {
@@ -441,14 +441,16 @@ console.log('Data (create-payment-intent):', data);
 
         // For Payment Elements, we need to submit the elements first to collect payment method data
         console.log('🔄 Submitting elements to collect payment data...');
-        const { error: submitError } = await this.elements.submit();
+        const { error: submitError, value: submitValue } = await this.elements.submit();
         if (submitError) {
           console.error('❌ Elements submit error:', submitError);
           throw new Error(submitError.message || 'Payment form validation failed');
         }
         console.log('✅ Elements submitted successfully');
+        console.log('🔍 Submit result value:', submitValue);
 
-        // Now confirm the payment
+        // Try using stripe.confirmPayment with the payment element directly
+        console.log('🔄 Attempting confirmPayment with payment element...');
         const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
           elements: this.elements,
           confirmParams: {
