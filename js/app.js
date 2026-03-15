@@ -1,8 +1,13 @@
-const SUPABASE_URL = 'https://calxwytlgkoooyypscry.supabase.co'; 
-const SUPABASE_ANON_KEY = 'sb_publishable_5nR7-p9o_ORS-qjrMxj4GA_RKm732Gn'; 
+// app.js — Ticket App Public (consolidated)
+// All Supabase, Stripe, Alpine stores and page components in one file.
+
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+const SUPABASE_URL = 'https://calxwytlgkoooyypscry.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_5nR7-p9o_ORS-qjrMxj4GA_RKm732Gn';
 const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 
-// For the new sb_publishable format, we need to use the newer import method
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -11,7 +16,6 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
-// Test Supabase connection
 async function testSupabaseConnection() {
   try {
     const { data, error } = await db.from('events').select('count').single();
@@ -27,22 +31,21 @@ async function testSupabaseConnection() {
   }
 }
 
-/**
- * Call a Supabase Edge Function (no auth for public endpoints).
- */
 async function callEdgeFunction(name, body) {
   const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
   return data;
 }
 
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SssZNP6Mg3f28KZzoWim4wZYHWJfKrSqyfXVRXsgDAC4pXFM7qw28HgszkDuCN9yP9751WUZ4v1lajWmyqSZY3800sgx3JuxA'; 
+// ============================================================
+// STRIPE CLIENT
+// ============================================================
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SssZNP6Mg3f28KZzoWim4wZYHWJfKrSqyfXVRXsgDAC4pXFM7qw28HgszkDuCN9yP9751WUZ4v1lajWmyqSZY3800sgx3JuxA';
 
 let stripeInstance = null;
 
@@ -53,10 +56,107 @@ function getStripe() {
   return stripeInstance;
 }
 
+// ============================================================
+// ALPINE INIT
+// ============================================================
 document.addEventListener('alpine:init', () => {
-  // Test Supabase connection on app initialization
   testSupabaseConnection();
 
+  // ----------------------------------------------------------
+  // STORES
+  // ----------------------------------------------------------
+  Alpine.store('cart', {
+    eventId: null,
+    eventName: '',
+    items: [],
+    buyerName: '',
+    buyerEmail: '',
+    buyerNationalId: '',
+    _lastOrder: null,
+
+    addItem(ticketType) {
+      const existing = this.items.find(i => i.ticketTypeId === ticketType.id);
+      if (existing) { 
+        existing.quantity++; 
+        return; 
+      }
+      this.items.push({
+        ticketTypeId: ticketType.id,
+        name: ticketType.name,
+        type: ticketType.type,
+        priceCents: ticketType.price_cents,
+        quantity: 1,
+        takesSeat: ticketType.takes_seat,
+        groupQty: ticketType.quantity,
+      });
+    },
+
+    removeItem(ticketTypeId) {
+      this.items = this.items.filter(i => i.ticketTypeId !== ticketTypeId);
+    },
+
+    updateQuantity(ticketTypeId, qty) {
+      const item = this.items.find(i => i.ticketTypeId === ticketTypeId);
+      if (!item) return;
+      if (qty <= 0) { this.removeItem(ticketTypeId); return; }
+      item.quantity = qty;
+    },
+
+    get totalCents() {
+      return this.items.reduce((sum, i) => sum + i.priceCents * i.quantity, 0);
+    },
+
+    get totalItems() {
+      return this.items.reduce((sum, i) => sum + i.quantity, 0);
+    },
+
+    get hasDonation() {
+      return this.items.some(i => i.type === 'donation' || i.type === 'donation_custom');
+    },
+
+    get isEmpty() {
+      return this.items.length === 0;
+    },
+
+    clear() {
+      this.items = [];
+      this.buyerName = '';
+      this.buyerEmail = '';
+      this.buyerNationalId = '';
+      this.eventId = null;
+      this.eventName = '';
+    },
+
+    setEvent(id, name) {
+      if (this.eventId && this.eventId !== id) { 
+        this.items = []; 
+      }
+      this.eventId = id;
+      this.eventName = name;
+    }
+  });
+
+  Alpine.store('notify', {
+    message: '',
+    type: 'info',
+    visible: false,
+    _timeout: null,
+
+    show(message, type = 'info', duration = 4000) {
+      this.message = message;
+      this.type = type;
+      this.visible = true;
+      clearTimeout(this._timeout);
+      this._timeout = setTimeout(() => { this.visible = false; }, duration);
+    },
+    success(msg) { this.show(msg, 'success'); },
+    error(msg) { this.show(msg, 'error', 6000); },
+    info(msg) { this.show(msg, 'info'); },
+  });
+
+  // ----------------------------------------------------------
+  // ROUTER
+  // ----------------------------------------------------------
   Alpine.data('app', () => ({
     currentRoute: 'events',
     ready: false,
@@ -69,7 +169,6 @@ document.addEventListener('alpine:init', () => {
 
     handleRoute() {
       const hash = window.location.hash || '#/';
-
       if (hash.match(/#\/events\/([a-f0-9-]+)/)) {
         this.currentRoute = 'event-detail';
       } else if (hash.startsWith('#/checkout')) {
@@ -86,7 +185,9 @@ document.addEventListener('alpine:init', () => {
     }
   }));
 
-  // Events Page Component
+  // ----------------------------------------------------------
+  // EVENTS PAGE
+  // ----------------------------------------------------------
   Alpine.data('eventsPage', () => ({
     events: [],
     loading: true,
@@ -104,7 +205,6 @@ document.addEventListener('alpine:init', () => {
           .select('*')
           .gte('event_date', now)
           .order('event_date', { ascending: true });
-
         if (error) throw error;
         this.events = data || [];
       } catch (err) {
@@ -115,16 +215,13 @@ document.addEventListener('alpine:init', () => {
     },
 
     formatDate(dateStr) {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('es-ES', {
+      return new Date(dateStr).toLocaleDateString('es-ES', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       });
     },
 
     formatTime(dateStr) {
-      return new Date(dateStr).toLocaleTimeString('es-ES', {
-        hour: '2-digit', minute: '2-digit'
-      });
+      return new Date(dateStr).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     },
 
     isAlmostFull(event) {
@@ -140,7 +237,9 @@ document.addEventListener('alpine:init', () => {
     }
   }));
 
-  // Event Detail Page Component
+  // ----------------------------------------------------------
+  // EVENT DETAIL PAGE
+  // ----------------------------------------------------------
   Alpine.data('eventDetailPage', () => ({
     event: null,
     ticketTypes: [],
@@ -164,11 +263,9 @@ document.addEventListener('alpine:init', () => {
             .eq('enabled', true)
             .order('sort_order'),
         ]);
-
         if (eventRes.error) throw eventRes.error;
         this.event = eventRes.data;
         this.ticketTypes = typesRes.data || [];
-
         Alpine.store('cart').setEvent(this.eventId, this.event.name);
       } catch (err) {
         Alpine.store('notify').error('Error al cargar el evento');
@@ -194,9 +291,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     formatTime(dateStr) {
-      return new Date(dateStr).toLocaleTimeString('es-ES', {
-        hour: '2-digit', minute: '2-digit'
-      });
+      return new Date(dateStr).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     },
 
     formatDuration(minutes) {
@@ -249,15 +344,30 @@ document.addEventListener('alpine:init', () => {
     }
   }));
 
-  // Checkout Page Component
+  // ----------------------------------------------------------
+  // CHECKOUT PAGE
+  // ----------------------------------------------------------
+  //
+  // FIX: The original code set this.step = 'processing' BEFORE
+  // calling stripe.confirmPayment(). Since Alpine's x-if removes
+  // DOM nodes when the condition is false, the Stripe Payment
+  // Element iframe was destroyed before Stripe could read from it.
+  //
+  // Solution: We keep step = 'payment' during the entire
+  // confirmPayment flow. A separate 'submittingPayment' flag
+  // drives a processing overlay that sits ON TOP of the payment
+  // form (keeping the Stripe iframe alive underneath).
+  //
+  // Also: pass clientSecret directly to confirmPayment() instead
+  // of relying on the Elements instance having it, per Stripe's
+  // latest migration docs.
+  // ----------------------------------------------------------
   Alpine.data('checkoutPage', () => ({
-    step: 'review', // 'review' | 'payment' | 'processing'
+    step: 'review',        // 'review' | 'payment' — only these two now
     error: null,
-    cardElement: null,
-    paymentElement: null, // Add paymentElement reference
-    elements: null, // Add elements reference
-    elementReady: false, // Track element readiness
-    elementError: null, // Track element errors
+    elements: null,        // Stripe Elements instance
+    paymentElement: null,   // The Payment Element
+    elementReady: false,
     clientSecret: null,
     creatingIntent: false,
     submittingPayment: false,
@@ -302,6 +412,7 @@ document.addEventListener('alpine:init', () => {
         && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.cart?.buyerEmail || '');
     },
 
+    // Step 1 → Step 2: create PaymentIntent, mount element
     async proceedToPayment() {
       if (!this.formValid) {
         this.error = 'Por favor, completa nombre y email correctamente.';
@@ -324,13 +435,12 @@ document.addEventListener('alpine:init', () => {
           buyerNationalId: this.cart.buyerNationalId.trim() || null,
         });
 
-console.log('Data (create-payment-intent):', data);
-
+        console.log('✅ PaymentIntent created, clientSecret received');
         this.clientSecret = data.clientSecret;
         this.step = 'payment';
 
-        // Mount Stripe card element after DOM update
-        this.$nextTick(() => this.mountCardElement());
+        // Wait for Alpine to render the payment step DOM, then mount
+        this.$nextTick(() => this.mountPaymentElement());
       } catch (err) {
         this.error = err.message;
       } finally {
@@ -338,13 +448,12 @@ console.log('Data (create-payment-intent):', data);
       }
     },
 
-    mountCardElement() {
+    // Mount the Stripe Payment Element into #stripe-payment-element
+    mountPaymentElement() {
       const stripe = getStripe();
 
-      console.log('Mounting Payment Element with clientSecret:', this.clientSecret ? 'present' : 'missing');
-
-      // Per official Stripe docs: pass clientSecret when creating the Elements instance
-      // https://docs.stripe.com/payments/accept-a-payment?payment-ui=elements&api-integration=paymentintents
+      // Create the Elements group with the clientSecret.
+      // This binds the Elements instance to this specific PaymentIntent.
       const elements = stripe.elements({
         clientSecret: this.clientSecret,
         appearance: {
@@ -359,9 +468,12 @@ console.log('Data (create-payment-intent):', data);
 
       this.elements = elements;
 
-      // Create the Payment Element (NOT a card element)
-      const paymentElement = elements.create('payment', { layout: 'tabs' });
-      this.paymentElement = paymentElement; // Store reference like we did with cardElement
+      // Create the Payment Element
+      const paymentElement = elements.create('payment', {
+        layout: 'tabs',
+      });
+
+      this.paymentElement = paymentElement;
 
       paymentElement.on('ready', () => {
         console.log('✅ Payment Element ready');
@@ -370,112 +482,88 @@ console.log('Data (create-payment-intent):', data);
 
       paymentElement.on('loaderror', (event) => {
         console.error('❌ Payment Element load error:', event);
-        this.elementError = event.error?.message || 'Error loading payment form';
+        this.error = 'Error al cargar el formulario de pago. Refresca la página.';
       });
 
-      paymentElement.on('change', (event) => {
-        console.log('Payment Element change:', event);
-      });
-
-      // Check if DOM element exists before mounting
+      // Mount into the DOM container
       const container = document.getElementById('stripe-payment-element');
       if (!container) {
-        console.error('❌ Container #stripe-payment-element not found');
-        this.elementError = 'Payment form container not found';
+        console.error('❌ #stripe-payment-element container not found in DOM');
+        this.error = 'Error interno: contenedor de pago no encontrado.';
         return;
       }
 
       paymentElement.mount('#stripe-payment-element');
       console.log('✅ Payment Element mounted');
-
-      // Add timeout to detect if ready event fires
-      setTimeout(() => {
-        if (!this.elementReady && !this.elementError) {
-          console.log('⚠️ Payment Element ready timeout - checking if element is in DOM');
-          const element = document.getElementById('stripe-payment-element');
-          if (element && element.children.length > 0) {
-            console.log('✅ Element exists in DOM, forcing ready state');
-            this.elementReady = true;
-          } else {
-            console.error('❌ Element not found in DOM after timeout');
-            this.elementError = 'Payment form failed to load. Please refresh the page.';
-          }
-        }
-      }, 5000); // 5 second timeout
     },
 
+    // Submit payment — CRITICAL: do NOT change step or hide the payment form
     async submitPayment() {
       if (this.submittingPayment) return;
       this.error = null;
       this.submittingPayment = true;
-      this.step = 'processing';
+
+      // ⚠️ DO NOT set this.step = 'processing' here!
+      // The Payment Element must remain mounted in the DOM for
+      // stripe.confirmPayment() to read data from its iframe.
+      // We use submittingPayment to show a processing overlay instead.
 
       try {
         const stripe = getStripe();
 
-        console.log('🔍 SubmitPayment debug:');
-        console.log('- elements exists:', !!this.elements);
-        console.log('- elementReady:', this.elementReady);
-        console.log('- elementError:', this.elementError);
-        console.log('- clientSecret:', this.clientSecret ? 'present' : 'missing');
-
         if (!this.elements) {
-          throw new Error('Payment element not initialized');
+          throw new Error('El formulario de pago no está inicializado.');
         }
-
-        // Check if Payment Element is actually in DOM
-        const container = document.getElementById('stripe-payment-element');
-        console.log('- container children:', container?.children.length || 0);
 
         if (!this.elementReady) {
-          throw new Error('Payment element is not ready yet. Please wait a moment and try again.');
+          throw new Error('El formulario de pago aún no está listo. Espera un momento.');
         }
 
-        if (this.elementError) {
-          throw new Error(`Payment element error: ${this.elementError}`);
-        }
-
-        console.log('✅ Confirming payment via stripe.confirmPayment()...');
-        console.log('🔍 Elements object:', this.elements);
-        console.log('🔍 Elements type:', typeof this.elements);
-
-        // For Payment Elements, we need to submit the elements first to collect payment method data
-        console.log('🔄 Submitting elements to collect payment data...');
-        const { error: submitError, value: submitValue } = await this.elements.submit();
+        // Step A: Submit the Elements to trigger validation
+        // and collect any wallet/payment data.
+        console.log('🔄 Calling elements.submit()...');
+        const { error: submitError } = await this.elements.submit();
         if (submitError) {
-          console.error('❌ Elements submit error:', submitError);
-          throw new Error(submitError.message || 'Payment form validation failed');
+          console.error('❌ elements.submit() error:', submitError);
+          throw new Error(submitError.message || 'Error de validación del pago.');
         }
-        console.log('✅ Elements submitted successfully');
-        console.log('🔍 Submit result value:', submitValue);
+        console.log('✅ elements.submit() succeeded');
 
-        // Try using stripe.confirmPayment with the payment element directly
-        console.log('🔄 Attempting confirmPayment with payment element...');
+        // Step B: Confirm the payment.
+        // Pass the Elements instance — the clientSecret is already
+        // bound to it from stripe.elements({ clientSecret }).
+        console.log('🔄 Calling stripe.confirmPayment()...');
         const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
           elements: this.elements,
           confirmParams: {
             return_url: window.location.origin + window.location.pathname + '#/confirmation',
+            payment_method_data: {
+              billing_details: {
+                name: this.cart.buyerName.trim(),
+                email: this.cart.buyerEmail.trim(),
+              },
+            },
           },
           redirect: 'if_required',
         });
 
         if (stripeError) {
-          console.error('❌ Stripe payment error:', stripeError);
-          this.error = stripeError.message;
-          this.step = 'payment';
-          this.submittingPayment = false;
-          return;
+          console.error('❌ stripe.confirmPayment() error:', stripeError);
+          throw new Error(stripeError.message);
         }
 
-        console.log('✅ Payment succeeded:', paymentIntent);
+        console.log('✅ Payment confirmed:', paymentIntent?.status);
 
         if (paymentIntent && paymentIntent.status === 'succeeded') {
-          // Confirm with our backend
+          // Step C: Confirm with our backend (create order, tickets, PDF, email)
+          console.log('🔄 Calling confirm-ticket edge function...');
           const result = await callEdgeFunction('confirm-ticket', {
             paymentIntentId: paymentIntent.id,
           });
 
-          // Store result for confirmation page
+          console.log('✅ Order created:', result.orderId);
+
+          // Store for the confirmation page
           Alpine.store('cart')._lastOrder = {
             orderId: result.orderId,
             ticketIds: result.ticketIds,
@@ -488,25 +576,33 @@ console.log('Data (create-payment-intent):', data);
 
           this.cart.clear();
           window.location.hash = '#/confirmation';
+        } else if (paymentIntent && paymentIntent.status === 'requires_action') {
+          // 3DS or other action required — Stripe handles this via redirect
+          // If we get here with redirect: 'if_required', Stripe already handled it
+          console.log('⏳ Payment requires additional action');
+        } else {
+          throw new Error('El pago no se completó. Estado: ' + (paymentIntent?.status || 'desconocido'));
         }
+
       } catch (err) {
-        console.error('❌ Payment submission error:', err);
-        this.error = err.message || 'Payment failed. Please try again.';
-        this.step = 'payment';
+        console.error('❌ Payment error:', err);
+        this.error = err.message || 'Error al procesar el pago. Inténtalo de nuevo.';
       } finally {
         this.submittingPayment = false;
       }
     },
 
     goBackToReview() {
-      this.step = 'review';
-      this.clientSecret = null;
-      this.cardElement = null;
-      this.paymentElement = null; // Clear paymentElement reference
+      // Destroy the Stripe elements cleanly
+      if (this.paymentElement) {
+        this.paymentElement.destroy();
+        this.paymentElement = null;
+      }
       this.elements = null;
       this.elementReady = false;
-      this.elementError = null;
+      this.clientSecret = null;
       this.error = null;
+      this.step = 'review';
     },
 
     goBackToEvent() {
@@ -514,16 +610,14 @@ console.log('Data (create-payment-intent):', data);
     }
   }));
 
-  // Confirmation Page Component
+  // ----------------------------------------------------------
+  // CONFIRMATION PAGE
+  // ----------------------------------------------------------
   Alpine.data('confirmationPage', () => ({
     order: null,
 
     init() {
       this.order = Alpine.store('cart')._lastOrder || null;
-      if (!this.order) {
-        // No order data — might be a redirect from Stripe
-        // In production, parse payment_intent from URL and fetch order
-      }
     },
 
     formatCents(cents) {
