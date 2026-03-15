@@ -334,7 +334,7 @@
                     <span class="checkout-section__step">3</span>
                     Método de pago
                   </div>
-                  <div class="checkout-section__body">
+                  <div class="checkout-section__body" style="position:relative">
                     <div id="stripe-payment-element"></div>
 
                     <div style="margin-top:20px;display:flex;gap:10px">
@@ -358,18 +358,18 @@
                     <div style="text-align:center;margin-top:14px;font-size:0.78rem;color:var(--color-text-muted)">
                       🔒 Pago seguro procesado por Stripe
                     </div>
-                  </div>
-                </div>
 
-                <!-- Processing overlay — sits ON TOP of the payment form -->
-                <!-- The Stripe Element remains mounted underneath -->
-                <div x-show="submittingPayment"
-                  style="position:absolute;inset:0;background:rgba(255,255,255,0.9);
-                        display:flex;flex-direction:column;align-items:center;
-                        justify-content:center;border-radius:14px;z-index:10">
-                  <div class="spinner" style="width:40px;height:40px;border-width:4px;margin-bottom:16px"></div>
-                  <div style="font-size:1.05rem;color:var(--color-text-secondary)">Procesando tu pago...</div>
-                  <div style="font-size:0.85rem;color:var(--color-text-muted);margin-top:4px">No cierres esta página</div>
+                    <!-- Processing overlay — sits ON TOP of the payment form -->
+                    <!-- The Stripe Element remains mounted underneath -->
+                    <div x-show="submittingPayment"
+                      style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);
+                            display:flex;flex-direction:column;align-items:center;
+                            justify-content:center;border-radius:14px;z-index:10">
+                      <div class="spinner" style="width:40px;height:40px;border-width:4px;margin-bottom:16px"></div>
+                      <div style="font-size:1.05rem;color:var(--color-text-secondary)">Procesando tu pago...</div>
+                      <div style="font-size:0.85rem;color:var(--color-text-muted);margin-top:4px">No cierres esta página</div>
+                    </div>
+                  </div>
                 </div>
 
               </div>
