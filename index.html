@@ -68,7 +68,7 @@
         <template x-if="!loading && events.length > 0">
           <div class="events-grid">
             <template x-for="event in events" :key="event.id">
-              <div class="event-card" @click="navigateTo(event.id)">
+              <div class="event-card" @click="navigateTo(event.slug)">
                 <template x-if="event.image_url">
                   <img :src="event.image_url" :alt="event.name" class="event-card__image">
                 </template>

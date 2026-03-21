@@ -232,43 +232,61 @@ document.addEventListener('alpine:init', () => {
       return event.available_seats <= 0;
     },
 
-    navigateTo(eventId) {
-      window.location.hash = `#/events/${eventId}`;
+    navigateTo(eventSlug) {
+      window.location.hash = `#/events/${eventSlug}`;
     }
   }));
 
   // ----------------------------------------------------------
   // EVENT DETAIL PAGE
-  // ----------------------------------------------------------
+  // Event detail page component (from pages/event-detail.js)
   Alpine.data('eventDetailPage', () => ({
     event: null,
     ticketTypes: [],
     loading: true,
-    eventId: null,
-
-    async init() {
-      const match = window.location.hash.match(/#\/events\/([a-f0-9-]+)/);
-      if (!match) { window.location.hash = '#/'; return; }
-      this.eventId = match[1];
-      await this.loadData();
+    cart: {
+      eventId: null,
+      eventSlug: null,
+      eventName: '',
+      items: {}, // ticketTypeId -> quantity
+      totalCents: 0
     },
 
-    async loadData() {
+    async init() {
+      this.eventSlug = this.getEventSlugFromHash();
+      if (!this.eventSlug) { window.location.hash = '#/'; return; }
+      await this.loadAll();
+    },
+
+    getEventSlugFromHash() {
+      const match = window.location.hash.match(/#\/events\/([a-zA-Z0-9-]+)$/);
+      return match ? match[1] : null;
+    },
+
+    async loadAll() {
       this.loading = true;
       try {
         const [eventRes, typesRes] = await Promise.all([
-          db.from('events').select('*').eq('id', this.eventId).single(),
+          db.from('events').select('*').eq('slug', this.eventSlug).single(),
           db.from('ticket_types').select('*')
-            .eq('event_id', this.eventId)
+            .eq('event_id', eventRes.data.id)
             .eq('enabled', true)
-            .order('sort_order'),
+            .order('sort_order', { ascending: true })
         ]);
+
         if (eventRes.error) throw eventRes.error;
+        if (typesRes.error) throw typesRes.error;
+
         this.event = eventRes.data;
+        this.cart.eventId = this.event.id;
+        this.cart.eventSlug = this.event.slug;
+        this.cart.eventName = this.event.name;
         this.ticketTypes = typesRes.data || [];
-        Alpine.store('cart').setEvent(this.eventId, this.event.name);
+
       } catch (err) {
-        Alpine.store('notify').error('Error al cargar el evento');
+        console.error('Error loading event:', err);
+        Alpine.store('notify').error('Error al cargar evento');
+        window.location.hash = '#/';
       } finally {
         this.loading = false;
       }
@@ -606,7 +624,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     goBackToEvent() {
-      window.location.hash = `#/events/${this.cart.eventId}`;
+      window.location.hash = `#/events/${this.cart.eventSlug}`;
     }
   }));
 
