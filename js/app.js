@@ -55,99 +55,6 @@ function getStripe() {
 }
 
 // ============================================================
-// GLOBAL STORES
-// ============================================================
-
-// Events data store for sharing between components
-Alpine.store('eventsData', {
-  events: [],
-  
-  setEvents(events) {
-    this.events = events || [];
-  },
-  
-  getEventBySlug(slug) {
-    return this.events.find(event => event.slug === slug);
-  },
-  
-  getEventById(id) {
-    return this.events.find(event => event.id === id);
-  }
-});
-
-// Cart store
-Alpine.store('cart', {
-  eventId: null,
-  eventName: '',
-  items: [],
-  buyerName: '',
-  buyerEmail: '',
-  buyerNationalId: '',
-  _lastOrder: null,
-
-  addItem(ticketType) {
-    const existing = this.items.find(i => i.ticketTypeId === ticketType.id);
-    if (existing) { 
-      existing.quantity++; 
-      return; 
-    }
-    this.items.push({
-      ticketTypeId: ticketType.id,
-      name: ticketType.name,
-      type: ticketType.type,
-      priceCents: ticketType.price_cents,
-      quantity: 1,
-      takesSeat: ticketType.takes_seat,
-      groupQty: ticketType.quantity,
-    });
-  },
-
-  removeItem(ticketTypeId) {
-    this.items = this.items.filter(i => i.ticketTypeId !== ticketTypeId);
-  },
-
-  updateQuantity(ticketTypeId, qty) {
-    const item = this.items.find(i => i.ticketTypeId === ticketTypeId);
-    if (!item) return;
-    if (qty <= 0) { this.removeItem(ticketTypeId); return; }
-    item.quantity = qty;
-  },
-
-  get totalCents() {
-    return this.items.reduce((sum, i) => sum + i.priceCents * i.quantity, 0);
-  },
-
-  get totalItems() {
-    return this.items.reduce((sum, i) => sum + i.quantity, 0);
-  },
-
-  get hasDonation() {
-    return this.items.some(i => i.type === 'donation' || i.type === 'donation_custom');
-  },
-
-  get isEmpty() {
-    return this.items.length === 0;
-  },
-
-  clear() {
-    this.items = [];
-    this.buyerName = '';
-    this.buyerEmail = '';
-    this.buyerNationalId = '';
-    this.eventId = null;
-    this.eventName = '';
-  },
-
-  setEvent(id, name) {
-    if (this.eventId && this.eventId !== id) { 
-      this.items = []; 
-    }
-    this.eventId = id;
-    this.eventName = name;
-  }
-});
-
-// ============================================================
 // ALPINE INIT
 // ============================================================
 document.addEventListener('alpine:init', () => {
@@ -156,26 +63,8 @@ document.addEventListener('alpine:init', () => {
   // ----------------------------------------------------------
   // STORES
   // ----------------------------------------------------------
-  Alpine.store('notify', {
-    message: '',
-    type: 'info',
-    show: false,
-    timeout: null,
-
-    success(msg) { this.show(msg, 'success', 3000); },
-    error(msg) { this.show(msg, 'error', 5000); },
-    info(msg) { this.show(msg, 'info', 3000); },
-
-    show(msg, type = 'info', duration = 3000) {
-      this.message = msg;
-      this.type = type;
-      this.show = true;
-      if (this.timeout) clearTimeout(this.timeout);
-      this.timeout = setTimeout(() => this.show = false, duration);
-    }
-  });
-
   Alpine.store('cart', {
+    eventId: null,
     eventName: '',
     items: [],
     buyerName: '',
@@ -245,6 +134,37 @@ document.addEventListener('alpine:init', () => {
     }
   });
 
+  Alpine.store('notify', {
+    message: '',
+    type: 'info',
+    visible: false,
+    _timeout: null,
+
+    show(message, type = 'info', duration = 4000) {
+      this.message = message;
+      this.type = type;
+      this.visible = true;
+      clearTimeout(this._timeout);
+      this._timeout = setTimeout(() => { this.visible = false; }, duration);
+    },
+    success(msg) { this.show(msg, 'success'); },
+    error(msg) { this.show(msg, 'error', 6000); },
+    info(msg) { this.show(msg, 'info'); },
+  });
+
+  // Simple events cache for optimization
+  Alpine.store('eventsCache', {
+    events: [],
+    
+    setEvents(events) {
+      this.events = events || [];
+    },
+    
+    getEventBySlug(slug) {
+      return this.events.find(event => event.slug === slug);
+    }
+  });
+
   // ----------------------------------------------------------
   // ROUTER
   // ----------------------------------------------------------
@@ -299,8 +219,8 @@ document.addEventListener('alpine:init', () => {
         if (error) throw error;
         this.events = data || [];
         
-        // Store events in global store for sharing
-        Alpine.store('eventsData').setEvents(this.events);
+        // Cache events for optimization
+        Alpine.store('eventsCache').setEvents(this.events);
       } catch (err) {
         Alpine.store('notify').error('Error al cargar eventos');
       } finally {
@@ -360,11 +280,11 @@ document.addEventListener('alpine:init', () => {
     async loadAll() {
       this.loading = true;
       try {
-        // First: Try to find event in already-loaded events array
-        let event = Alpine.store('eventsData').getEventBySlug(this.eventSlug);
+        // First: Try to get event from cache
+        let event = Alpine.store('eventsCache').getEventBySlug(this.eventSlug);
         
         if (!event) {
-          // Fallback: load from server if not found (direct access or refresh)
+          // Fallback: Load from server if not in cache (direct access or refresh)
           const { data: eventData, error: eventError } = await db
             .from('events').select('*').eq('slug', this.eventSlug).single();
           if (eventError) throw eventError;
