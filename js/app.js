@@ -31,7 +31,11 @@ async function testSupabaseConnection() {
 async function callEdgeFunction(name, body) {
   const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/${name}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json();
