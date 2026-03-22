@@ -1,5 +1,3 @@
-// app.js — Ticket App Public (consolidated)
-// All Supabase, Stripe, Alpine stores and page components in one file.
 
 // ============================================================
 // SUPABASE CLIENT
@@ -169,7 +167,7 @@ document.addEventListener('alpine:init', () => {
 
     handleRoute() {
       const hash = window.location.hash || '#/';
-      if (hash.match(/#\/events\/([a-f0-9-]+)/)) {
+      if (hash.match(/#\/events\/([a-zA-Z0-9-]+)/)) {
         this.currentRoute = 'event-detail';
       } else if (hash.startsWith('#/checkout')) {
         this.currentRoute = 'checkout';
