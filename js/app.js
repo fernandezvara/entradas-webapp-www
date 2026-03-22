@@ -1,4 +1,3 @@
-
 // ============================================================
 // SUPABASE CLIENT
 // ============================================================
@@ -21,10 +20,10 @@ async function testSupabaseConnection() {
       console.error('Supabase connection test failed:', error);
       return false;
     }
-    console.log('Supabase connection successful');
+    // console.log('Supabase connection successful');
     return true;
   } catch (err) {
-    console.error('Supabase connection error:', err);
+    // console.error('Supabase connection error:', err);
     return false;
   }
 }
@@ -65,6 +64,7 @@ document.addEventListener('alpine:init', () => {
   // ----------------------------------------------------------
   Alpine.store('cart', {
     eventId: null,
+    eventSlug: null,
     eventName: '',
     items: [],
     buyerName: '',
@@ -122,15 +122,17 @@ document.addEventListener('alpine:init', () => {
       this.buyerEmail = '';
       this.buyerNationalId = '';
       this.eventId = null;
+      this.eventSlug = null;
       this.eventName = '';
     },
 
-    setEvent(id, name) {
+    setEvent(id, name, slug = null) {
       if (this.eventId && this.eventId !== id) { 
         this.items = []; 
       }
       this.eventId = id;
       this.eventName = name;
+      this.eventSlug = slug;
     }
   });
 
@@ -253,18 +255,11 @@ document.addEventListener('alpine:init', () => {
 
   // ----------------------------------------------------------
   // EVENT DETAIL PAGE
-  // Event detail page component (from pages/event-detail.js)
+  // ----------------------------------------------------------
   Alpine.data('eventDetailPage', () => ({
     event: null,
     ticketTypes: [],
     loading: true,
-    cart: {
-      eventId: null,
-      eventSlug: null,
-      eventName: '',
-      items: {}, // ticketTypeId -> quantity
-      totalCents: 0
-    },
 
     async init() {
       this.eventSlug = this.getEventSlugFromHash();
@@ -302,9 +297,7 @@ document.addEventListener('alpine:init', () => {
         
         // Set data
         this.event = event;
-        this.cart.eventId = event.id;
-        this.cart.eventSlug = event.slug;
-        this.cart.eventName = event.name;
+        Alpine.store('cart').setEvent(event.id, event.name, event.slug);
         this.ticketTypes = ticketTypes || [];
 
       } catch (err) {
@@ -350,8 +343,8 @@ document.addEventListener('alpine:init', () => {
 
     typeLabel(type) {
       switch (type) {
-        case 'general': return 'Entrada';
-        case 'group': return 'Pack';
+        case 'general': return 'Entrada individual';
+        case 'group': return 'Pack entradas';
         case 'donation': return 'Donación';
         case 'donation_custom': return 'Donación libre';
         default: return type;
@@ -389,25 +382,10 @@ document.addEventListener('alpine:init', () => {
   // ----------------------------------------------------------
   // CHECKOUT PAGE
   // ----------------------------------------------------------
-  //
-  // FIX: The original code set this.step = 'processing' BEFORE
-  // calling stripe.confirmPayment(). Since Alpine's x-if removes
-  // DOM nodes when the condition is false, the Stripe Payment
-  // Element iframe was destroyed before Stripe could read from it.
-  //
-  // Solution: We keep step = 'payment' during the entire
-  // confirmPayment flow. A separate 'submittingPayment' flag
-  // drives a processing overlay that sits ON TOP of the payment
-  // form (keeping the Stripe iframe alive underneath).
-  //
-  // Also: pass clientSecret directly to confirmPayment() instead
-  // of relying on the Elements instance having it, per Stripe's
-  // latest migration docs.
-  // ----------------------------------------------------------
   Alpine.data('checkoutPage', () => ({
-    step: 'review',        // 'review' | 'payment' — only these two now
+    step: 'review',         // 'review' | 'payment' — only these two 
     error: null,
-    elements: null,        // Stripe Elements instance
+    elements: null,         // Stripe Elements instance
     paymentElement: null,   // The Payment Element
     elementReady: false,
     clientSecret: null,
@@ -477,7 +455,7 @@ document.addEventListener('alpine:init', () => {
           buyerNationalId: this.cart.buyerNationalId.trim() || null,
         });
 
-        console.log('✅ PaymentIntent created, clientSecret received');
+        // console.log('✅ PaymentIntent created, clientSecret received');
         this.clientSecret = data.clientSecret;
         this.step = 'payment';
 
@@ -518,37 +496,31 @@ document.addEventListener('alpine:init', () => {
       this.paymentElement = paymentElement;
 
       paymentElement.on('ready', () => {
-        console.log('✅ Payment Element ready');
+        // console.log('✅ Payment Element ready');
         this.elementReady = true;
       });
 
       paymentElement.on('loaderror', (event) => {
-        console.error('❌ Payment Element load error:', event);
+        // console.error('❌ Payment Element load error:', event);
         this.error = 'Error al cargar el formulario de pago. Refresca la página.';
       });
 
       // Mount into the DOM container
       const container = document.getElementById('stripe-payment-element');
       if (!container) {
-        console.error('❌ #stripe-payment-element container not found in DOM');
+        // console.error('❌ #stripe-payment-element container not found in DOM');
         this.error = 'Error interno: contenedor de pago no encontrado.';
         return;
       }
 
       paymentElement.mount('#stripe-payment-element');
-      console.log('✅ Payment Element mounted');
+      // console.log('✅ Payment Element mounted');
     },
 
-    // Submit payment — CRITICAL: do NOT change step or hide the payment form
     async submitPayment() {
       if (this.submittingPayment) return;
       this.error = null;
       this.submittingPayment = true;
-
-      // ⚠️ DO NOT set this.step = 'processing' here!
-      // The Payment Element must remain mounted in the DOM for
-      // stripe.confirmPayment() to read data from its iframe.
-      // We use submittingPayment to show a processing overlay instead.
 
       try {
         const stripe = getStripe();
@@ -563,18 +535,18 @@ document.addEventListener('alpine:init', () => {
 
         // Step A: Submit the Elements to trigger validation
         // and collect any wallet/payment data.
-        console.log('🔄 Calling elements.submit()...');
+        // console.log('🔄 Calling elements.submit()...');
         const { error: submitError } = await this.elements.submit();
         if (submitError) {
-          console.error('❌ elements.submit() error:', submitError);
+          // console.error('❌ elements.submit() error:', submitError);
           throw new Error(submitError.message || 'Error de validación del pago.');
         }
-        console.log('✅ elements.submit() succeeded');
+        // console.log('✅ elements.submit() succeeded');
 
         // Step B: Confirm the payment.
         // Pass the Elements instance — the clientSecret is already
         // bound to it from stripe.elements({ clientSecret }).
-        console.log('🔄 Calling stripe.confirmPayment()...');
+        // console.log('🔄 Calling stripe.confirmPayment()...');
         const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
           elements: this.elements,
           confirmParams: {
@@ -590,20 +562,20 @@ document.addEventListener('alpine:init', () => {
         });
 
         if (stripeError) {
-          console.error('❌ stripe.confirmPayment() error:', stripeError);
+          // console.error('❌ stripe.confirmPayment() error:', stripeError);
           throw new Error(stripeError.message);
         }
 
-        console.log('✅ Payment confirmed:', paymentIntent?.status);
+        // console.log('✅ Payment confirmed:', paymentIntent?.status);
 
         if (paymentIntent && paymentIntent.status === 'succeeded') {
           // Step C: Confirm with our backend (create order, tickets, PDF, email)
-          console.log('🔄 Calling confirm-ticket edge function...');
+          // console.log('🔄 Calling confirm-ticket edge function...');
           const result = await callEdgeFunction('confirm-ticket', {
             paymentIntentId: paymentIntent.id,
           });
 
-          console.log('✅ Order created:', result.orderId);
+          // console.log('✅ Order created:', result.orderId);
 
           // Store for the confirmation page
           Alpine.store('cart')._lastOrder = {
@@ -627,7 +599,7 @@ document.addEventListener('alpine:init', () => {
         }
 
       } catch (err) {
-        console.error('❌ Payment error:', err);
+        // console.error('❌ Payment error:', err);
         this.error = err.message || 'Error al procesar el pago. Inténtalo de nuevo.';
       } finally {
         this.submittingPayment = false;
