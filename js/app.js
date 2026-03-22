@@ -264,22 +264,27 @@ document.addEventListener('alpine:init', () => {
     async loadAll() {
       this.loading = true;
       try {
-        const [eventRes, typesRes] = await Promise.all([
-          db.from('events').select('*').eq('slug', this.eventSlug).single(),
-          db.from('ticket_types').select('*')
-            .eq('event_id', eventRes.data.id)
-            .eq('enabled', true)
-            .order('sort_order', { ascending: true })
-        ]);
-
-        if (eventRes.error) throw eventRes.error;
-        if (typesRes.error) throw typesRes.error;
-
-        this.event = eventRes.data;
-        this.cart.eventId = this.event.id;
-        this.cart.eventSlug = this.event.slug;
-        this.cart.eventName = this.event.name;
-        this.ticketTypes = typesRes.data || [];
+        // First: Load event data
+        const { data: event, error: eventError } = await db
+          .from('events').select('*').eq('slug', this.eventSlug).single();
+        
+        if (eventError) throw eventError;
+        
+        // Second: Load ticket types for this specific event
+        const { data: ticketTypes, error: typesError } = await db
+          .from('ticket_types').select('*')
+          .eq('event_id', event.id)
+          .eq('enabled', true)
+          .order('sort_order', { ascending: true });
+        
+        if (typesError) throw typesError;
+        
+        // Set data
+        this.event = event;
+        this.cart.eventId = event.id;
+        this.cart.eventSlug = event.slug;
+        this.cart.eventName = event.name;
+        this.ticketTypes = ticketTypes || [];
 
       } catch (err) {
         console.error('Error loading event:', err);
