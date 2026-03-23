@@ -191,6 +191,8 @@ document.addEventListener('alpine:init', () => {
         this.currentRoute = 'checkout';
       } else if (hash.startsWith('#/confirmation')) {
         this.currentRoute = 'confirmation';
+      } else if (hash.startsWith('#/terms')) {
+        this.currentRoute = 'terms';
       } else {
         this.currentRoute = 'events';
       }
@@ -624,6 +626,19 @@ document.addEventListener('alpine:init', () => {
 
     goBackToEvent() {
       window.location.hash = `#/events/${this.cart.eventSlug}`;
+    }
+  }));
+
+  // ----------------------------------------------------------
+  // TERMS PAGE
+  // ----------------------------------------------------------
+  Alpine.data('termsPage', () => ({
+    goHome() {
+      window.location.hash = '#/';
+    },
+    
+    goBack() {
+      history.back();
     }
   }));
 
