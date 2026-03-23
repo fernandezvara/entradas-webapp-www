@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entradas — Ticket App</title>
+  <title>Entradas — ADF</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css">
@@ -23,7 +23,6 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <!-- App scripts -->
-  <!-- <script src="js/store.js"></script> -->
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -36,7 +35,10 @@
   <!-- HEADER -->
   <header class="site-header">
     <div class="site-header__inner">
-      <a href="#/" class="site-logo"><span>■</span> Ticket App</a>
+      <a href="#/" class="site-logo">
+        <img src="img/logo.png" alt="ADF Logo" class="site-logo__image">
+        <span>Entradas</span>
+      </a>
 
       <template x-if="!$store.cart.isEmpty">
         <a href="#/checkout" class="cart-indicator">
@@ -361,10 +363,8 @@
 
                     <!-- Processing overlay — sits ON TOP of the payment form -->
                     <!-- The Stripe Element remains mounted underneath -->
-                    <div x-show="submittingPayment"
-                      style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);
-                            display:flex;flex-direction:column;align-items:center;
-                            justify-content:center;border-radius:14px;z-index:10">
+                    <div x-show="submittingPayment" class="payment-processing-overlay"
+                         style="display:flex">
                       <div class="spinner" style="width:40px;height:40px;border-width:4px;margin-bottom:16px"></div>
                       <div style="font-size:1.05rem;color:var(--color-text-secondary)">Procesando tu pago...</div>
                       <div style="font-size:0.85rem;color:var(--color-text-muted);margin-top:4px">No cierres esta página</div>
@@ -559,7 +559,7 @@
   <footer class="site-footer">
     <div class="site-footer__content">
       <div class="site-footer__main">
-        <div>Ticket App — Plataforma solidaria de venta de entradas</div>
+        <div>Entradas — Plataforma solidaria de venta de entradas</div>
       </div>
       <div class="site-footer__links">
         <a href="#/condiciones-de-servicio" class="site-footer__link">Condiciones de servicio</a>

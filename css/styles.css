@@ -6,20 +6,20 @@
 :root {
   --color-bg: #faf9f6;
   --color-surface: #ffffff;
-  --color-surface-alt: #f4f2ee;
-  --color-border: #e2ddd5;
-  --color-border-light: #ece8e1;
+  --color-surface-alt: #f4f4fa;
+  --color-border: #e5e5e5;
+  --color-border-light: #d1d1d1;
 
-  --color-text: #2c2418;
-  --color-text-secondary: #6b5e4f;
-  --color-text-muted: #9c907f;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #4a4a4a;
+  --color-text-muted: #8a8a8a;
 
-  --color-primary: #1a5c3a;
-  --color-primary-hover: #14472d;
-  --color-primary-light: #e8f3ed;
+  --color-primary: #2B2D75;
+  --color-primary-hover: #1a1b45;
+  --color-primary-light: #e8e8f4;
 
-  --color-accent: #c45d2c;
-  --color-accent-light: #fdf1eb;
+  --color-accent: #EE753C;
+  --color-accent-light: #fde8db;
 
   --color-success: #1a5c3a;
   --color-success-bg: #e8f3ed;
@@ -29,10 +29,11 @@
   --color-danger-bg: #fceaea;
   --color-info: #2a5a8c;
   --color-info-bg: #eaf1f8;
-  --color-muted-bg: #f4f2ee;
+  --color-muted-bg: #f4f4fa;
 
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
   --radius-sm: 4px;
   --radius: 8px;
@@ -96,6 +97,15 @@ img { max-width: 100%; display: block; }
   color: var(--color-text);
   text-decoration: none;
   letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-logo__image {
+  height: 50px;
+  width: auto;
+  display: block;
 }
 
 .site-logo:hover { text-decoration: none; }
@@ -810,6 +820,25 @@ img { max-width: 100%; display: block; }
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 4px;
+}
+
+/* Submitting payment overlay - ensure proper centering */
+.checkout-section__body {
+  position: relative;
+}
+
+.payment-processing-overlay {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 14px !important;
+  z-index: 10 !important;
 }
 
 /* ============================================================
