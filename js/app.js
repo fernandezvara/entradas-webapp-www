@@ -191,8 +191,8 @@ document.addEventListener('alpine:init', () => {
         this.currentRoute = 'checkout';
       } else if (hash.startsWith('#/confirmation')) {
         this.currentRoute = 'confirmation';
-      } else if (hash.startsWith('#/terms')) {
-        this.currentRoute = 'terms';
+      } else if (hash.startsWith('#/condiciones-de-servicio')) {
+        this.currentRoute = 'condiciones-de-servicio';
       } else {
         this.currentRoute = 'events';
       }
